@@ -16,7 +16,7 @@ import org.springframework.boot.json.JsonParseException;
  */
 class IdentityClient {
 
-    private static final String KEY_HEADER = "X-Server-API-Key";
+    private static final String KEY_HEADER = "X-Server-Connection-Key";
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
 
     private final String apiUrl;

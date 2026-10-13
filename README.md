@@ -23,7 +23,7 @@ The starter is published to GitHub Packages. Add the repository and the dependen
 <dependency>
     <groupId>com.velode</groupId>
     <artifactId>identity-spring-boot-starter</artifactId>
-    <version>0.1.0</version>
+    <version>0.2.0</version>
 </dependency>
 ```
 
@@ -51,6 +51,9 @@ velode.identity.app-url=https://lista.velode.io
 
 `velode.identity.name` overrides the name suggested to the administrator (default `spring.application.name`) and
 `velode.identity.key-rotation` how often the key is replaced (default `30d`).
+
+The application's origin must be HTTPS on one of the organization's application domains, and its backend must
+reach the organization address over HTTPS. An application that uses Spring Security permits `/velode-identity/**`.
 
 ## Connect
 
@@ -87,6 +90,9 @@ ResponseEntity<String> me(HttpServletRequest request) {
 themselves. Identity only says who the user is and that they may enter the application; own the user's data with
 `userId` and decide roles and permissions in the application. Until the connection is approved, sign-in answers
 `503` and no user is returned.
+
+`currentUser` and `verify` ask Identity on every call, so call them once per request. Signing out clears the
+application's cookie only; the user's Identity session continues, and signing in again returns without a prompt.
 
 ## Develop And Release
 

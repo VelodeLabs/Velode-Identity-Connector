@@ -315,7 +315,7 @@ class VelodeIdentityTest {
     private synchronized void answer(HttpExchange exchange) throws IOException {
         String path = exchange.getRequestURI().getPath().substring(("/api/organizations/" + ORGANIZATION).length());
         String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-        String key = exchange.getRequestHeaders().getFirst("X-Server-API-Key");
+        String key = exchange.getRequestHeaders().getFirst("X-Server-Connection-Key");
         requests.add(body);
         if ("/connection".equals(path)) {
             String status = key.equals(approvedKey) ? "CONNECTED" : "PENDING";
@@ -326,7 +326,7 @@ class VelodeIdentityTest {
             respond(exchange, 200, "{\"success\":true,\"data\":{\"status\":\"" + status + "\",\"code\":\"4F7-A92\""
                 + ("CONNECTED".equals(status) ? ",\"appSlug\":\"lista\"" : ",\"appSlug\":null") + "}}");
         } else if (!key.equals(approvedKey)) {
-            respond(exchange, 401, "{\"status\":401,\"error\":\"INVALID_CONNECTION_KEY\",\"message\":\"Invalid server API key\"}");
+            respond(exchange, 401, "{\"status\":401,\"error\":\"INVALID_CONNECTION_KEY\",\"message\":\"Invalid server connection key\"}");
         } else if ("/connection/rotate".equals(path)) {
             approvedKey = body.replaceAll(".*\"newKey\":\"([^\"]+)\".*", "$1");
             respond(exchange, 204, "");
