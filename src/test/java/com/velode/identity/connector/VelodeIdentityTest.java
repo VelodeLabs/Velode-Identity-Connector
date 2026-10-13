@@ -197,7 +197,7 @@ class VelodeIdentityTest {
             respond(exchange, 204, "");
         } else if (body.contains("\"appSlug\":\"lista\"") && (body.contains("valid-token") || body.contains("valid-code"))) {
             respond(exchange, 200, "{\"success\":true,\"data\":{\"userId\":\"" + USER_ID + "\",\"email\":\"user@velode.io\","
-                + "\"appSlug\":\"lista\",\"token\":\"valid-token\",\"expiresAt\":\"" + NOW.plus(Duration.ofDays(1)) + "\"}}");
+                + "\"appSlug\":\"lista\",\"sessionToken\":\"valid-token\",\"expiresAt\":\"" + NOW.plus(Duration.ofDays(1)) + "\"}}");
         } else {
             respond(exchange, 401, "{\"status\":401,\"error\":\"UNAUTHORIZED\",\"message\":\"Invalid or expired token\"}");
         }

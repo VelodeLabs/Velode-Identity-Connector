@@ -49,7 +49,7 @@ public class VelodeIdentity {
     /** Trades the one-time code Identity appended to the callback for the user's session. */
     public Optional<IdentitySession> exchange(String code) {
         return call("/session/exchange", "code", code).map(response -> new IdentitySession(
-            user(response), response.text("token"), Instant.parse(response.text("expiresAt"))));
+            user(response), response.text("sessionToken"), Instant.parse(response.text("expiresAt"))));
     }
 
     /** The user a session token belongs to, while it is valid and the user may still enter this application. */
