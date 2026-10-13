@@ -2,7 +2,6 @@ package com.velode.identity.connector;
 
 import java.util.Optional;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -15,7 +14,8 @@ public interface ConnectionStore {
     /** Stores the first value only; returns false when another replica already stored one. */
     boolean create(String value);
 
-    void save(String value);
+    /** Atomically replaces the expected value; returns false if the stored value is absent or has changed. */
+    boolean compareAndSet(String expected, String updated);
 
     /**
      * One row per connection in a table the connector creates in the application's database.
@@ -53,37 +53,11 @@ public interface ConnectionStore {
         }
 
         @Override
-        public void save(String value) {
-            jdbc.update("UPDATE velode_identity_connection SET connection = ? WHERE id = ?", value, id);
+        public boolean compareAndSet(String expected, String updated) {
+            return jdbc.update(
+                "UPDATE velode_identity_connection SET connection = ? WHERE id = ? AND connection = ?",
+                updated, id, expected) == 1;
         }
     }
 
-    /**
-     * One Redis key per connection.
-     */
-    final class Redis implements ConnectionStore {
-
-        private final StringRedisTemplate redis;
-        private final String key;
-
-        public Redis(StringRedisTemplate redis, String id) {
-            this.redis = redis;
-            this.key = "velode:identity:connection:" + id;
-        }
-
-        @Override
-        public Optional<String> load() {
-            return Optional.ofNullable(redis.opsForValue().get(key));
-        }
-
-        @Override
-        public boolean create(String value) {
-            return Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(key, value));
-        }
-
-        @Override
-        public void save(String value) {
-            redis.opsForValue().set(key, value);
-        }
-    }
 }

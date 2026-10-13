@@ -91,9 +91,7 @@ class ConnectionManager implements SmartLifecycle {
 
     /** One step of the connection's life; safe to repeat and to run on several replicas. */
     synchronized void maintain() {
-        if (connection == null) {
-            connection = loadOrCreate();
-        }
+        connection = loadOrCreate();
         if (connection.appSlug() == null) {
             requestConnection();
         } else if (!connection.rotatedAt().plus(properties.keyRotation()).isAfter(clock.instant())) {
@@ -106,15 +104,18 @@ class ConnectionManager implements SmartLifecycle {
      * accepted just before a crash, or an administrator may have disconnected the application.
      */
     synchronized void recover(Connection refused) {
-        Connection stored = store.load().map(Connection::decode).orElse(refused);
+        Connection stored = loadOrCreate();
+        connection = stored;
         if (!stored.key().equals(refused.key())) {
-            connection = stored;
-        } else if (stored.nextKey() != null) {
-            save(new Connection(stored.nextKey(), null, stored.appSlug(), clock.instant()));
+            return;
+        }
+        if (stored.nextKey() != null) {
+            save(stored, new Connection(stored.nextKey(), null, stored.appSlug(), clock.instant()));
         } else {
             LOGGER.warn("Velode Identity no longer accepts this application's connection; asking to connect again");
-            save(new Connection(newKey(), null, null, clock.instant()));
-            announcedStatus = null;
+            if (save(stored, new Connection(newKey(), null, null, clock.instant()))) {
+                announcedStatus = null;
+            }
         }
     }
 
@@ -128,10 +129,13 @@ class ConnectionManager implements SmartLifecycle {
     }
 
     private void requestConnection() {
-        Response response = status(connection.key());
+        Connection current = connection;
+        Response response = status(current.key());
         String status = response.status() == 200 ? response.text("status") : "HTTP " + response.status();
         if ("CONNECTED".equals(status)) {
-            save(new Connection(connection.key(), null, response.text("appSlug"), clock.instant()));
+            if (!save(current, new Connection(current.key(), null, response.text("appSlug"), clock.instant()))) {
+                return;
+            }
             LOGGER.info("Connected to Velode Identity as application '{}'", connection.appSlug());
         } else if (!status.equals(announcedStatus)) {
             if ("PENDING".equals(status)) {
@@ -150,23 +154,32 @@ class ConnectionManager implements SmartLifecycle {
 
     private void rotateKey() {
         Connection current = connection;
-        String nextKey = current.nextKey() == null ? newKey() : current.nextKey();
-        // Stored first so a crash between Identity accepting the key and saving it never loses the connection.
-        save(new Connection(current.key(), nextKey, current.appSlug(), current.rotatedAt()));
-        Response response = client.post("/connection/rotate", current.key(), Map.of("newKey", nextKey));
+        Connection pending = current;
+        if (current.nextKey() == null) {
+            // Stored first so a crash after Identity accepts the key does not lose the connection.
+            pending = new Connection(current.key(), newKey(), current.appSlug(), current.rotatedAt());
+            if (!save(current, pending)) {
+                return;
+            }
+        }
+        Response response = client.post("/connection/rotate", pending.key(), Map.of("newKey", pending.nextKey()));
         if (response.status() == 204) {
-            save(new Connection(nextKey, null, current.appSlug(), clock.instant()));
+            save(pending, new Connection(pending.nextKey(), null, pending.appSlug(), clock.instant()));
         } else if (response.keyRefused()) {
-            recover(connection);
+            recover(pending);
         } else {
             throw new IdentityUnavailableException(
                 "Velode Identity answered " + response.status() + " to a key replacement", null);
         }
     }
 
-    private void save(Connection updated) {
-        store.save(updated.encode());
+    private boolean save(Connection expected, Connection updated) {
+        if (!store.compareAndSet(expected.encode(), updated.encode())) {
+            connection = loadOrCreate();
+            return false;
+        }
         connection = updated;
+        return true;
     }
 
     private String newKey() {

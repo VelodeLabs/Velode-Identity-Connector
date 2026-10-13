@@ -59,8 +59,12 @@ Code: 4F7-A92`, and the organization panel shows the request with the same code.
 sign in. The connector notices within ten seconds; nothing is restarted or pasted.
 
 The connector keeps its connection in the application's own storage so every replica shares it: a
-`velode_identity_connection` table it creates when the application has a `JdbcTemplate`, otherwise a Redis key when
-it has a `StringRedisTemplate`. Declare a `ConnectionStore` bean to keep it elsewhere.
+`velode_identity_connection` table it creates when the application has a `JdbcTemplate`. Declare a `ConnectionStore`
+bean to keep it elsewhere. A custom store must implement atomic `create` and `compareAndSet(expected, updated)`;
+a missing or changed expected value returns false. The previous unconditional `save` contract is removed.
+
+Update all replicas together after adapting custom stores. Older connector versions can overwrite newer connection
+state. The stored format is unchanged.
 
 If an administrator disconnects the application, or its storage is lost, the connector asks to connect again and the
 panel shows the request as a reconnection of the same application.
