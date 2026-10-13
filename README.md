@@ -63,7 +63,7 @@ The connector keeps its connection in the application's own storage so every rep
 bean to keep it elsewhere. A custom store must implement atomic `create` and `compareAndSet(expected, updated)`;
 a missing or changed expected value returns false. The previous unconditional `save` contract is removed.
 
-Update all replicas together after adapting custom stores. Older connector versions can overwrite newer connection
+Update Identity first, then update all connector replicas together after adapting custom stores. Older connector versions can overwrite newer connection
 state. The stored format is unchanged.
 
 If an administrator disconnects the application, or its storage is lost, the connector asks to connect again and the
