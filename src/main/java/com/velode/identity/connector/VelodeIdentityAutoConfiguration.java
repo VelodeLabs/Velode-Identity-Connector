@@ -16,7 +16,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -24,9 +23,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 @AutoConfiguration(afterName = {
     "org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration",
-    "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
-    "org.springframework.boot.jdbc.autoconfigure.JdbcTemplateAutoConfiguration",
-    "org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration"
+    "org.springframework.boot.jdbc.autoconfigure.JdbcTemplateAutoConfiguration"
 })
 @ConditionalOnProperty(prefix = "velode.identity", name = "url")
 @EnableConfigurationProperties(VelodeIdentityProperties.class)
@@ -58,7 +55,7 @@ public class VelodeIdentityAutoConfiguration {
         return new VelodeIdentity(properties, connections, client);
     }
 
-    /** Separates the connections of applications or organizations that share one database or Redis. */
+    /** Separates the connections of applications or organizations that share one database. */
     private static String storeId(VelodeIdentityProperties properties) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
@@ -78,18 +75,6 @@ public class VelodeIdentityAutoConfiguration {
         @ConditionalOnMissingBean(ConnectionStore.class)
         ConnectionStore velodeIdentityJdbcConnectionStore(JdbcTemplate jdbcTemplate, VelodeIdentityProperties properties) {
             return new ConnectionStore.Jdbc(jdbcTemplate, storeId(properties));
-        }
-    }
-
-    @Configuration(proxyBeanMethods = false)
-    @ConditionalOnClass(StringRedisTemplate.class)
-    static class RedisStoreConfiguration {
-
-        @Bean
-        @ConditionalOnBean(StringRedisTemplate.class)
-        @ConditionalOnMissingBean(ConnectionStore.class)
-        ConnectionStore velodeIdentityRedisConnectionStore(StringRedisTemplate redisTemplate, VelodeIdentityProperties properties) {
-            return new ConnectionStore.Redis(redisTemplate, storeId(properties));
         }
     }
 

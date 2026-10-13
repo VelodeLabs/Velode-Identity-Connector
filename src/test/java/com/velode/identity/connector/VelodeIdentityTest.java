@@ -14,13 +14,22 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Drives the connector against a stand-in for Identity that keeps only what Identity keeps: which keys are
@@ -35,7 +44,7 @@ class VelodeIdentityTest {
     private final Set<String> pendingKeys = new HashSet<>();
     private final List<String> requests = new ArrayList<>();
     private final MemoryStore store = new MemoryStore();
-    private String approvedKey;
+    private volatile String approvedKey;
     private HttpServer identity;
     private MutableClock clock;
     private ConnectionManager connections;
@@ -122,12 +131,138 @@ class VelodeIdentityTest {
     @Test
     void should_KeepConnection_when_ItStoppedAfterIdentityAcceptedTheNewKey() {
         connect();
-        Connection connected = connections.connected().orElseThrow();
-        String acceptedKey = "N".repeat(43);
-        store.save(new Connection(connected.key(), acceptedKey, connected.appSlug(), connected.rotatedAt()).encode());
-        approvedKey = acceptedKey;
+        clock.advance(Duration.ofDays(30));
+        store.beforeCompareAndSet = (expected, updated) -> {
+            if (expected.nextKey() != null && updated.nextKey() == null) {
+                throw new IllegalStateException("Stopped before persisting the accepted key");
+            }
+        };
 
-        assertThat(manager(velodeIdentity -> velodeIdentity.verify("valid-token"))).isPresent();
+        assertThatThrownBy(connections::maintain).isInstanceOf(IllegalStateException.class);
+        assertThat(store.load().map(Connection::decode)).map(Connection::nextKey).contains(approvedKey);
+        store.beforeCompareAndSet = (expected, updated) -> { };
+
+        assertThat(manager(identity -> identity.verify("valid-token"))).isPresent();
+        assertThat(pendingKeys).isEmpty();
+    }
+
+    @Test
+    void should_ShareOneCandidate_when_TwoReplicasRotateSimultaneously() throws Exception {
+        connect();
+        ConnectionManager replica = manager();
+        replica.maintain();
+        String previousKey = approvedKey;
+        clock.advance(Duration.ofDays(30));
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch release = new CountDownLatch(1);
+        store.beforeCompareAndSet = (expected, updated) -> {
+            if (expected.nextKey() == null && updated.nextKey() != null) {
+                ready.countDown();
+                await(release);
+            }
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> first = executor.submit(connections::maintain);
+            Future<?> second = executor.submit(replica::maintain);
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            release.countDown();
+            first.get(10, TimeUnit.SECONDS);
+            second.get(10, TimeUnit.SECONDS);
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
+
+        connections.maintain();
+        replica.maintain();
+        assertThat(approvedKey).isNotEqualTo(previousKey);
+        assertThat(connections.connected()).map(Connection::key).contains(approvedKey);
+        assertThat(replica.connected()).map(Connection::key).contains(approvedKey);
+        assertThat(velodeIdentity.verify("valid-token")).isPresent();
+        assertThat(new VelodeIdentity(properties(), replica, new IdentityClient(properties().apiUrl()))
+            .verify("valid-token")).isPresent();
+        assertThat(pendingKeys).isEmpty();
+    }
+
+    @Test
+    void should_IgnoreLateConfirmation_when_AnotherReplicaAlreadyRotatedAgain() throws Exception {
+        connect();
+        ConnectionManager replica = manager();
+        replica.maintain();
+        clock.advance(Duration.ofDays(30));
+        CountDownLatch confirmationReady = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicReference<Thread> delayedThread = new AtomicReference<>();
+        store.beforeCompareAndSet = (expected, updated) -> {
+            if (Thread.currentThread() == delayedThread.get()
+                && expected.nextKey() != null && updated.nextKey() == null) {
+                confirmationReady.countDown();
+                await(release);
+            }
+        };
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<?> delayed = executor.submit(() -> {
+                delayedThread.set(Thread.currentThread());
+                connections.maintain();
+            });
+            assertThat(confirmationReady.await(10, TimeUnit.SECONDS)).isTrue();
+            String firstReplacement = approvedKey;
+            replica.maintain();
+            clock.advance(Duration.ofDays(30));
+            replica.maintain();
+            assertThat(approvedKey).isNotEqualTo(firstReplacement);
+            release.countDown();
+            delayed.get(10, TimeUnit.SECONDS);
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
+
+        assertThat(store.load().map(Connection::decode)).map(Connection::key).contains(approvedKey);
+        assertThat(connections.connected()).map(Connection::key).contains(approvedKey);
+        assertThat(replica.connected()).map(Connection::key).contains(approvedKey);
+        assertThat(velodeIdentity.verify("valid-token")).isPresent();
+        assertThat(pendingKeys).isEmpty();
+    }
+
+    @Test
+    void should_ShareOneReconnection_when_TwoReplicasRecoverSimultaneously() throws Exception {
+        connect();
+        ConnectionManager replica = manager();
+        replica.maintain();
+        VelodeIdentity replicaIdentity = new VelodeIdentity(properties(), replica, new IdentityClient(properties().apiUrl()));
+        approvedKey = null;
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch release = new CountDownLatch(1);
+        store.beforeCompareAndSet = (expected, updated) -> {
+            if (expected.appSlug() != null && updated.appSlug() == null) {
+                ready.countDown();
+                await(release);
+            }
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> first = executor.submit(() -> velodeIdentity.verify("valid-token"));
+            Future<?> second = executor.submit(() -> replicaIdentity.verify("valid-token"));
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            release.countDown();
+            first.get(10, TimeUnit.SECONDS);
+            second.get(10, TimeUnit.SECONDS);
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
+
+        connections.maintain();
+        replica.maintain();
+        assertThat(pendingKeys).hasSize(1);
+        approve();
+        connections.maintain();
+        replica.maintain();
+        assertThat(velodeIdentity.verify("valid-token")).isPresent();
+        assertThat(replicaIdentity.verify("valid-token")).isPresent();
         assertThat(pendingKeys).isEmpty();
     }
 
@@ -203,6 +338,17 @@ class VelodeIdentityTest {
         }
     }
 
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Timed out coordinating replicas");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted coordinating replicas", exception);
+        }
+    }
+
     private static void respond(HttpExchange exchange, int status, String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.sendResponseHeaders(status, bytes.length == 0 ? -1 : bytes.length);
@@ -213,6 +359,7 @@ class VelodeIdentityTest {
     private static final class MemoryStore implements ConnectionStore {
 
         private String value;
+        private volatile BiConsumer<Connection, Connection> beforeCompareAndSet = (expected, updated) -> { };
 
         @Override
         public synchronized Optional<String> load() {
@@ -229,8 +376,15 @@ class VelodeIdentityTest {
         }
 
         @Override
-        public synchronized void save(String saved) {
-            value = saved;
+        public boolean compareAndSet(String expected, String updated) {
+            beforeCompareAndSet.accept(Connection.decode(expected), Connection.decode(updated));
+            synchronized (this) {
+                if (!Objects.equals(value, expected)) {
+                    return false;
+                }
+                value = updated;
+                return true;
+            }
         }
     }
 
