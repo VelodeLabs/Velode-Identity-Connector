@@ -23,7 +23,7 @@ The starter is published to GitHub Packages. Add the repository and the dependen
 <dependency>
     <groupId>com.velode</groupId>
     <artifactId>identity-spring-boot-starter</artifactId>
-    <version>0.2.0</version>
+    <version>0.3.0</version>
 </dependency>
 ```
 
@@ -93,6 +93,46 @@ themselves. Identity only says who the user is and that they may enter the appli
 
 `currentUser` and `verify` ask Identity on every call, so call them once per request. Signing out clears the
 application's cookie only; the user's Identity session continues, and signing in again returns without a prompt.
+
+## Your Own Sign-In Page
+
+An application can show email sign-in on its own page, with its own design, instead of linking to Identity's page.
+Identity still decides every step; the page only collects what the user types and sends it to the connector, which
+is the only thing that talks to Identity. Requires Identity with the `login-flow` protocol.
+
+| Request | Body | Success |
+| --- | --- | --- |
+| `GET /velode-identity/flow/options` | — | `{"turnstileSiteKey", "turnstileAction"}` when Turnstile is required, else `{}` |
+| `POST /velode-identity/flow/start` | `{"email", "turnstileToken"?}` | `{"next":"EMAIL_CODE"}` |
+| `POST /velode-identity/flow/resend` | `{"turnstileToken"?}` | `{"next":"EMAIL_CODE"}` |
+| `POST /velode-identity/flow/code` | `{"code"}` | `{"next":"TOTP"}` or `{"next":"DONE"}` |
+| `POST /velode-identity/flow/totp` | `{"code"}` | `{"next":"DONE"}` |
+
+```js
+async function step(name, body) {
+  const response = await fetch(`/velode-identity/flow/${name}`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+  });
+  return response.json(); // {"next": ...} or {"error": ...}
+}
+await step("start", { email });             // always EMAIL_CODE, so it never reveals whether an account exists
+const { next } = await step("code", { code }); // TOTP asks for the authenticator code next; DONE is signed in
+```
+
+The flow lives in an `HttpOnly` cookie that page scripts never see; `DONE` sets the same session cookie as the
+redirect sign-in, after Identity confirms the session it issued. Requests must be JSON. Failures answer
+`{"error": CODE}`: `INVALID_CODE` (wrong, used or expired code: ask again or restart), `TURNSTILE_REJECTED`,
+`LOCKED`, `RATE_LIMITED`, `ACCESS_DENIED` (the account may not enter this application), `NO_FLOW` (start first) and
+`NOT_CONNECTED` or `IDENTITY_UNAVAILABLE`. With Spring Security, permit `/velode-identity/**` and either exclude
+`/velode-identity/flow/**` from CSRF or send the CSRF header with these requests.
+
+When `options` names a site key, render Cloudflare Turnstile with that key and action and send its token with
+`start` and `resend`; the application's host must be in the widget's hostnames. Identity applies its limits and
+lockouts to the browser's address: behind a proxy, set `server.forward-headers-strategy` so `getRemoteAddr()` is the
+browser's. Codes for these sign-ins name the application and have no magic link. OAuth providers still use the
+redirect sign-in, and sign-ins on an application's own page are not shared with other applications.
+`VelodeIdentity` offers the same steps as `loginOptions`, `startLogin`, `resendLoginCode`, `submitLoginCode` and
+`submitAuthenticatorCode` for applications that keep the flow themselves.
 
 ## Develop And Release
 

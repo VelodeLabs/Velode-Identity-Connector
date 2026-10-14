@@ -64,8 +64,8 @@ class IdentityClient {
             : Map.of();
     }
 
-    /** Every value the connector sends is a URL, a name or base64url text, so escaping stays minimal. */
-    private static String json(Map<String, String> body) {
+    /** Every value the connector writes is plain text, so a flat object of escaped strings is enough. */
+    static String json(Map<String, String> body) {
         return body.entrySet().stream()
             .map(entry -> '"' + entry.getKey() + "\":\"" + escape(entry.getValue()) + '"')
             .collect(Collectors.joining(",", "{", "}"));

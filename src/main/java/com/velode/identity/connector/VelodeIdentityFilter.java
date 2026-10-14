@@ -1,6 +1,10 @@
 package com.velode.identity.connector;
 
+import com.velode.identity.connector.IdentityClient.IdentityUnavailableException;
 import com.velode.identity.connector.VelodeIdentity.IdentitySession;
+import com.velode.identity.connector.VelodeIdentity.LoginFlow;
+import com.velode.identity.connector.VelodeIdentity.LoginOptions;
+import com.velode.identity.connector.VelodeIdentity.LoginStep;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -14,10 +18,18 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import org.springframework.boot.json.BasicJsonParser;
+import org.springframework.boot.json.JsonParseException;
 
 /**
- * Serves the application's sign-in, callback and sign-out addresses so it only has to link to them.
+ * Serves the application's sign-in, callback and sign-out addresses so it only has to link to them, and the JSON
+ * steps of its own sign-in page.
  */
 class VelodeIdentityFilter extends HttpFilter {
 
@@ -31,6 +43,13 @@ class VelodeIdentityFilter extends HttpFilter {
     private static final String STATE_COOKIE = "velode_identity_state";
     private static final Duration STATE_TTL = Duration.ofMinutes(10);
     private static final String HOME = "/";
+    private static final String FLOW_PATH = "/velode-identity/flow/";
+    private static final Set<String> FLOW_STEPS = Set.of("options", "start", "resend", "code", "totp");
+    private static final String FLOW_COOKIE = "velode_identity_flow";
+    private static final Duration FLOW_TTL = Duration.ofMinutes(20);
+    private static final int MAX_BODY_BYTES = 8192;
+    private static final int LOCKED = 423;
+    private static final int TOO_MANY_REQUESTS = 429;
 
     private final transient VelodeIdentity identity;
     private final transient SecureRandom random;
@@ -51,8 +70,139 @@ class VelodeIdentityFilter extends HttpFilter {
                 response.addCookie(cookie(VelodeIdentity.SESSION_COOKIE, "", Duration.ZERO, request));
                 response.sendRedirect(request.getContextPath() + HOME);
             }
-            default -> chain.doFilter(request, response);
+            default -> {
+                if (path.startsWith(FLOW_PATH)) {
+                    flow(path.substring(FLOW_PATH.length()), request, response);
+                } else {
+                    chain.doFilter(request, response);
+                }
+            }
         }
+    }
+
+    /**
+     * JSON steps for the application's own sign-in page. Identity decides every step; the flow stays in an HttpOnly
+     * cookie the page's scripts never read. JSON bodies keep other sites' forms from starting or continuing a flow.
+     */
+    private void flow(String step, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        response.setHeader("Cache-Control", "no-store");
+        boolean post = "POST".equals(request.getMethod());
+        if (!FLOW_STEPS.contains(step)) {
+            json(response, HttpServletResponse.SC_NOT_FOUND, Map.of("error", "NOT_FOUND"));
+            return;
+        }
+        // Options is read with GET; every other step is a POST.
+        if ("options".equals(step) == post) {
+            json(response, HttpServletResponse.SC_METHOD_NOT_ALLOWED, Map.of("error", "METHOD_NOT_ALLOWED"));
+            return;
+        }
+        if (post && (request.getContentType() == null
+            || !request.getContentType().toLowerCase(Locale.ROOT).startsWith("application/json"))) {
+            json(response, HttpServletResponse.SC_UNSUPPORTED_MEDIA_TYPE, Map.of("error", "JSON_REQUIRED"));
+            return;
+        }
+        Map<String, Object> body = post ? body(request) : Map.of();
+        if (body == null) {
+            json(response, HttpServletResponse.SC_BAD_REQUEST, Map.of("error", "INVALID_REQUEST"));
+            return;
+        }
+        try {
+            if ("options".equals(step)) {
+                options(response);
+                return;
+            }
+            String client = request.getRemoteAddr();
+            Optional<LoginFlow> flow = flowCookie(request);
+            if (!"start".equals(step) && flow.isEmpty()) {
+                json(response, HttpServletResponse.SC_BAD_REQUEST, Map.of("error", "NO_FLOW"));
+                return;
+            }
+            LoginStep result = switch (step) {
+                case "start" -> identity.startLogin(text(body, "email"), client, text(body, "turnstileToken"));
+                case "resend" -> identity.resendLoginCode(flow.get(), client, text(body, "turnstileToken"));
+                case "code" -> identity.submitLoginCode(flow.get(), text(body, "code"), client);
+                default -> identity.submitAuthenticatorCode(flow.get(), text(body, "code"), client);
+            };
+            respond(result, request, response);
+        } catch (IdentityUnavailableException exception) {
+            json(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, Map.of("error", "IDENTITY_UNAVAILABLE"));
+        }
+    }
+
+    private void options(HttpServletResponse response) throws IOException {
+        Optional<LoginOptions> options = identity.loginOptions();
+        if (options.isEmpty()) {
+            json(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, Map.of("error", LoginStep.NOT_CONNECTED));
+            return;
+        }
+        Map<String, String> fields = new LinkedHashMap<>();
+        if (options.get().turnstileSiteKey() != null) {
+            fields.put("turnstileSiteKey", options.get().turnstileSiteKey());
+            fields.put("turnstileAction", options.get().turnstileAction());
+        }
+        json(response, HttpServletResponse.SC_OK, fields);
+    }
+
+    private void respond(LoginStep step, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        if (step.failed()) {
+            json(response, status(step.error()), Map.of("error", step.error()));
+            return;
+        }
+        if (step.next() == LoginStep.Next.DONE) {
+            Duration lifetime = Duration.between(Instant.now(), step.session().expiresAt());
+            response.addCookie(cookie(VelodeIdentity.SESSION_COOKIE, step.session().token(), lifetime, request));
+            response.addCookie(cookie(FLOW_COOKIE, "", Duration.ZERO, request));
+        } else {
+            response.addCookie(cookie(FLOW_COOKIE, step.flow().id() + "." + step.flow().secret(), FLOW_TTL, request));
+        }
+        json(response, HttpServletResponse.SC_OK, Map.of("next", step.next().name()));
+    }
+
+    private static int status(String error) {
+        return switch (error) {
+            case "INVALID_CODE", "TURNSTILE_REJECTED", "VALIDATION_ERROR" -> HttpServletResponse.SC_BAD_REQUEST;
+            case "ACCESS_DENIED" -> HttpServletResponse.SC_FORBIDDEN;
+            case "LOCKED" -> LOCKED;
+            case "RATE_LIMITED" -> TOO_MANY_REQUESTS;
+            default -> HttpServletResponse.SC_SERVICE_UNAVAILABLE;
+        };
+    }
+
+    private static Optional<LoginFlow> flowCookie(HttpServletRequest request) {
+        String[] parts = cookieValue(request, FLOW_COOKIE).split("\\.", 2);
+        try {
+            return parts.length == 2 ? Optional.of(new LoginFlow(UUID.fromString(parts[0]), parts[1])) : Optional.empty();
+        } catch (IllegalArgumentException exception) {
+            return Optional.empty();
+        }
+    }
+
+    /** A small JSON object, or null when the body is too large or not one. */
+    private static Map<String, Object> body(HttpServletRequest request) throws IOException {
+        byte[] bytes = request.getInputStream().readNBytes(MAX_BODY_BYTES + 1);
+        if (bytes.length > MAX_BODY_BYTES) {
+            return null;
+        }
+        String text = new String(bytes, StandardCharsets.UTF_8);
+        if (text.isBlank()) {
+            return Map.of();
+        }
+        try {
+            return new BasicJsonParser().parseMap(text);
+        } catch (JsonParseException exception) {
+            return null;
+        }
+    }
+
+    private static String text(Map<String, Object> body, String field) {
+        return body.get(field) instanceof String value ? value : null;
+    }
+
+    private static void json(HttpServletResponse response, int status, Map<String, String> fields) throws IOException {
+        response.setStatus(status);
+        response.setContentType("application/json");
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.getWriter().write(IdentityClient.json(fields));
     }
 
     private void login(HttpServletRequest request, HttpServletResponse response) throws IOException {
