@@ -11,7 +11,7 @@
 	</parent>
 	<groupId>com.velode</groupId>
 	<artifactId>identity-spring-boot-starter</artifactId>
-	<version>0.2.0</version>
+	<version>0.3.0</version>
 	<name>velode-identity-connector</name>
 	<description>Connects a Spring Boot application to Velode Identity without managed credentials</description>
 	<url>https://github.com/VelodeLabs/Velode-Identity-Connector</url>
