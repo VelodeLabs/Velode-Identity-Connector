@@ -56,7 +56,7 @@ velode.identity.app-url=https://app.example.com
 The app URL is an origin, without a path, on an allowed application domain.
 Use the application's existing `JdbcTemplate` bean and database: the connector creates
 `velode_identity_connection` there, so its account needs permission to create that table.
-All replicas must share this storage. For another storage option, see [connection storage](../README.md#connection-storage).
+All replicas must share this storage. For another storage option, see [connection storage](advanced-usage.md#connection-storage).
 
 ## 4. Allow The Connector Routes
 
@@ -108,4 +108,4 @@ The connector handles the callback and keeps the session in an `HttpOnly`, `Secu
 Link to `/velode-identity/logout` to clear the app's cookie; the Identity session remains signed in.
 Before approval, sign-in returns `503`.
 
-For a custom email sign-in page, see [Your own sign-in page](../README.md#your-own-sign-in-page).
+For a custom email sign-in page, see [Your own sign-in page](advanced-usage.md#your-own-sign-in-page).
