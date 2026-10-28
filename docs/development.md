@@ -32,7 +32,28 @@ Work on a branch from `develop` and open a pull request against it; see [contrib
 1. On a branch from `develop`, set the new version in `pom.xml` and in the
    [connection guide](connect-application.md), and merge it to `develop`.
 2. Open a pull request from `develop` to `master` and merge it once CI passes.
-3. Push a matching tag from `master`, such as `v0.4.0`.
+3. Push a matching tag from `master`, such as `v0.4.1`.
 
-The `Publish` workflow refuses a tag that differs from the `pom.xml` version and deploys the starter to GitHub
-Packages. Published versions are immutable; release a new one instead of replacing it.
+The `Publish` workflow refuses a tag that differs from the `pom.xml` version, then publishes the jar, sources and
+Javadoc to Maven Central (signed) and to GitHub Packages. Published versions are immutable; release a new one instead
+of replacing it.
+
+### Maven Central
+
+The `maven-central` environment only accepts release tags and holds:
+
+| Secret | Value |
+| --- | --- |
+| `CENTRAL_USERNAME`, `CENTRAL_TOKEN` | A user token from central.sonatype.com for the verified `com.velode` namespace |
+| `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE` | The armored signing key and its passphrase |
+
+The signing key is `0FA015BF13775E582A58C41EDC3A6A2D31C6A2F1` (Velode Labs, RSA 4096), published on
+`keyserver.ubuntu.com` and `keys.openpgp.org`. It expires in October 2029: extend it with `gpg --quick-set-expire`,
+publish it again and update `GPG_PRIVATE_KEY`. If the token or key leaks, revoke it and replace the secrets.
+
+To check a release build locally without publishing, give the build any signing key through `MAVEN_GPG_KEY` and
+`MAVEN_GPG_PASSPHRASE`, and a `central` server in `~/.m2/settings.xml`:
+
+```bash
+./mvnw -P release,central deploy -DskipPublishing=true
+```
