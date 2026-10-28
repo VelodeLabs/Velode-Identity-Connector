@@ -41,7 +41,8 @@ on developer machines and CI:
 </server>
 ```
 
-Provide `GITHUB_PACKAGES_TOKEN` through the environment, with `read:packages` and repository read access.
+Provide `GITHUB_PACKAGES_TOKEN` through the environment: a GitHub personal access token (classic) with the
+`read:packages` scope, which GitHub Packages requires even for public packages.
 Keep the token out of git; it is only for downloading the dependency.
 
 ## 3. Configure The Application
@@ -113,3 +114,4 @@ Sign-out started by another site is refused with `403`, so other sites cannot si
 Before approval, sign-in returns `503`.
 
 For a custom email sign-in page, see [Your own sign-in page](advanced-usage.md#your-own-sign-in-page).
+Before going to production, review the [security guide](security.md) and its checklist.
