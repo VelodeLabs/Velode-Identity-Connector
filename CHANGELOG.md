@@ -6,7 +6,7 @@
   class. Code that caught `RuntimeException` keeps working.
 - The sign-in callback answers `503` instead of an error page when Identity cannot be reached.
 - The jar carries `LICENSE` and `NOTICE`, and declares the module name `com.velode.identity.connector`.
-- Published to Maven Central, signed with the Velode Labs key; no repository or token needed to install.
+- Published to Maven Central, signed with the Velode release key; no repository or token needed to install.
 - Releases include sources and Javadoc.
 
 ## 0.4.0

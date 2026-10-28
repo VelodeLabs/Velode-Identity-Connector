@@ -23,7 +23,7 @@ The connector is published to Maven Central. Add it under `<dependencies>` in th
 </dependency>
 ```
 
-Releases are signed with the Velode Labs key `0FA0 15BF 1377 5E58 2A58 C41E DC3A 6A2D 31C6 A2F1`, published on
+Releases are signed with the Velode release key `0FA0 15BF 1377 5E58 2A58 C41E DC3A 6A2D 31C6 A2F1`, published on
 `keyserver.ubuntu.com` and `keys.openpgp.org`. The same versions are also on GitHub Packages, which needs a token
 even for public packages; see [installing from GitHub Packages](advanced-usage.md#installing-from-github-packages).
 
