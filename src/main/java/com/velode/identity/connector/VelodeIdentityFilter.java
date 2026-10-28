@@ -1,6 +1,5 @@
 package com.velode.identity.connector;
 
-import com.velode.identity.connector.IdentityClient.IdentityUnavailableException;
 import com.velode.identity.connector.VelodeIdentity.IdentitySession;
 import com.velode.identity.connector.VelodeIdentity.LoginFlow;
 import com.velode.identity.connector.VelodeIdentity.LoginOptions;
@@ -238,7 +237,13 @@ class VelodeIdentityFilter extends HttpFilter {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Sign-in could not be completed");
             return;
         }
-        Optional<IdentitySession> session = identity.exchange(request.getParameter(CODE_PARAMETER));
+        Optional<IdentitySession> session;
+        try {
+            session = identity.exchange(request.getParameter(CODE_PARAMETER));
+        } catch (IdentityUnavailableException exception) {
+            response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE, "Sign-in is not available right now");
+            return;
+        }
         if (session.isEmpty()) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Sign-in could not be completed");
             return;

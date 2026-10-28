@@ -1,6 +1,5 @@
 package com.velode.identity.connector;
 
-import com.velode.identity.connector.IdentityClient.IdentityUnavailableException;
 import com.velode.identity.connector.IdentityClient.Response;
 import java.security.SecureRandom;
 import java.time.Clock;

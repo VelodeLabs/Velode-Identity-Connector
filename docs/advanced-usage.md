@@ -20,7 +20,7 @@ Every release is also published to GitHub Packages. Add the repository under `<r
 ```xml
 <repository>
     <id>github-velode</id>
-    <url>https://maven.pkg.github.com/VelodeLabs/Velode-Identity-Connector</url>
+    <url>https://maven.pkg.github.com/velodelabs/Velode-Identity-Connector</url>
 </repository>
 ```
 
@@ -45,7 +45,9 @@ Packages requires even for public packages. Keep it out of git.
 ## Browser Flows
 
 `VelodeIdentity` also offers `loginUrl`, `exchange` and `verify` for applications that manage the browser flow
-themselves. `currentUser` and `verify` ask Identity on every call, so call them once per request.
+themselves. `currentUser` and `verify` ask Identity on every call, so call them once per request. Every method that
+asks Identity throws `IdentityUnavailableException` when Identity cannot be reached; the connector's own sign-in
+addresses answer `503` in that case.
 
 ## Your Own Sign-In Page
 

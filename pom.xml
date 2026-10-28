@@ -14,10 +14,10 @@
 	<version>0.4.1</version>
 	<name>velode-identity-connector</name>
 	<description>Connects a Spring Boot application to Velode Identity without managed credentials</description>
-	<url>https://github.com/VelodeLabs/Velode-Identity-Connector</url>
+	<url>https://github.com/velodelabs/Velode-Identity-Connector</url>
 	<organization>
 		<name>Velode Labs</name>
-		<url>https://github.com/VelodeLabs</url>
+		<url>https://github.com/velodelabs</url>
 	</organization>
 	<licenses>
 		<license>
@@ -32,23 +32,23 @@
 			<name>Velode Labs</name>
 			<email>admin@velode.com</email>
 			<organization>Velode Labs</organization>
-			<organizationUrl>https://github.com/VelodeLabs</organizationUrl>
+			<organizationUrl>https://github.com/velodelabs</organizationUrl>
 		</developer>
 	</developers>
 	<scm>
-		<url>https://github.com/VelodeLabs/Velode-Identity-Connector</url>
-		<connection>scm:git:https://github.com/VelodeLabs/Velode-Identity-Connector.git</connection>
-		<developerConnection>scm:git:git@github.com:VelodeLabs/Velode-Identity-Connector.git</developerConnection>
+		<url>https://github.com/velodelabs/Velode-Identity-Connector</url>
+		<connection>scm:git:https://github.com/velodelabs/Velode-Identity-Connector.git</connection>
+		<developerConnection>scm:git:git@github.com:velodelabs/Velode-Identity-Connector.git</developerConnection>
 		<tag>HEAD</tag>
 	</scm>
 	<issueManagement>
 		<system>GitHub</system>
-		<url>https://github.com/VelodeLabs/Velode-Identity-Connector/issues</url>
+		<url>https://github.com/velodelabs/Velode-Identity-Connector/issues</url>
 	</issueManagement>
 	<distributionManagement>
 		<repository>
 			<id>github</id>
-			<url>https://maven.pkg.github.com/VelodeLabs/Velode-Identity-Connector</url>
+			<url>https://maven.pkg.github.com/velodelabs/Velode-Identity-Connector</url>
 		</repository>
 	</distributionManagement>
 	<properties>
@@ -89,6 +89,36 @@
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
+
+	<build>
+		<resources>
+			<resource>
+				<directory>src/main/resources</directory>
+			</resource>
+			<!-- The Apache License asks every copy of the work to carry the license and notice. -->
+			<resource>
+				<directory>${project.basedir}</directory>
+				<targetPath>META-INF</targetPath>
+				<includes>
+					<include>LICENSE</include>
+					<include>NOTICE</include>
+				</includes>
+			</resource>
+		</resources>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<configuration>
+					<archive>
+						<manifestEntries>
+							<Automatic-Module-Name>com.velode.identity.connector</Automatic-Module-Name>
+						</manifestEntries>
+					</archive>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
 
 	<profiles>
 		<!-- Sources and Javadoc published with every release. -->

@@ -16,6 +16,7 @@ import java.util.UUID;
 /**
  * What a connected application asks Identity: where to send a user to sign in and who a session belongs to.
  * Identity only says who the user is and that they may enter this application; the application decides the rest.
+ * Every method that asks Identity throws {@link IdentityUnavailableException} when Identity cannot be reached.
  */
 public class VelodeIdentity {
 

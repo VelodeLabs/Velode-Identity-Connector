@@ -128,6 +128,17 @@ class VelodeIdentityFilterTest {
     }
 
     @Test
+    void should_AnswerUnavailable_when_IdentityCannotBeReachedDuringCallback() throws Exception {
+        Cookie state = send(new MockHttpServletRequest("GET", VelodeIdentityFilter.LOGIN_PATH)).getCookie(STATE_COOKIE);
+
+        MockHttpServletResponse unavailable = send(callback(state, stateOf(state), "unreachable-code"));
+
+        assertThat(unavailable.getStatus()).isEqualTo(503);
+        assertThat(unavailable.getCookie(VelodeIdentity.SESSION_COOKIE)).isNull();
+        assertThat(unavailable.getCookie(STATE_COOKIE).getMaxAge()).isZero();
+    }
+
+    @Test
     void should_RefuseSignIn_when_ApplicationIsNotConnectedYet() throws Exception {
         identity.connected = false;
 
@@ -257,7 +268,10 @@ class VelodeIdentityFilterTest {
         return response;
     }
 
-    /** Hands out Identity's sign-in address while connected and trades only {@code valid-code}. */
+    /**
+     * Hands out Identity's sign-in address while connected, trades only {@code valid-code} and cannot reach Identity
+     * for {@code unreachable-code}.
+     */
     private static final class StubIdentity extends VelodeIdentity {
 
         private final List<String> exchanged = new ArrayList<>();
@@ -275,6 +289,9 @@ class VelodeIdentityFilterTest {
         @Override
         public Optional<IdentitySession> exchange(String code) {
             exchanged.add(code);
+            if ("unreachable-code".equals(code)) {
+                throw new IdentityUnavailableException("Velode Identity could not be reached", null);
+            }
             return "valid-code".equals(code)
                 ? Optional.of(new IdentitySession(new IdentityUser(UUID.randomUUID(), "user@velode.io"), SESSION_TOKEN,
                     Instant.now().plus(SESSION_LIFETIME)))
