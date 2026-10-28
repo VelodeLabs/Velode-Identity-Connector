@@ -19,6 +19,7 @@ Requires Java 21 and Spring Boot 3.5 or 4.x with a servlet stack.
 - [Advanced usage](docs/advanced-usage.md)
 - [Security guide](docs/security.md)
 - [Identity protocol](docs/identity-protocol.md)
+- [Changelog](CHANGELOG.md)
 
 ## Develop And Release
 

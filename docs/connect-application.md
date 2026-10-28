@@ -26,7 +26,7 @@ In the application's Maven `pom.xml`, add this repository under `<repositories>`
 <dependency>
     <groupId>com.velode</groupId>
     <artifactId>identity-spring-boot-starter</artifactId>
-    <version>0.3.0</version>
+    <version>0.4.0</version>
 </dependency>
 ```
 
