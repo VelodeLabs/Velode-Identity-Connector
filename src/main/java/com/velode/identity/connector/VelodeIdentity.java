@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -48,13 +49,12 @@ public class VelodeIdentity {
 
     /** Trades the one-time code Identity appended to the callback for the user's session. */
     public Optional<IdentitySession> exchange(String code) {
-        return call("/session/exchange", "code", code).map(response -> new IdentitySession(
-            user(response), response.text("sessionToken"), Instant.parse(response.text("expiresAt"))));
+        return call("/session/exchange", "code", code).flatMap(VelodeIdentity::session);
     }
 
     /** The user a session token belongs to, while it is valid and the user may still enter this application. */
     public Optional<IdentityUser> verify(String token) {
-        return call("/verify", "token", token).map(VelodeIdentity::user);
+        return call("/verify", "token", token).flatMap(VelodeIdentity::user);
     }
 
     /** The user signed in through the connector's web endpoints, verified with Identity on every call. */
@@ -118,14 +118,28 @@ public class VelodeIdentity {
         if (response.status() != 200) {
             return LoginStep.failed(response.text("error") == null ? LoginStep.LOGIN_FAILED : response.text("error"));
         }
-        return switch (String.valueOf(response.text("next"))) {
-            case "EMAIL_CODE" -> new LoginStep(LoginStep.Next.EMAIL_CODE, response.text("flowId") == null ? flow
-                : new LoginFlow(UUID.fromString(response.text("flowId")), response.text("flowSecret")), null, null);
-            case "TOTP" -> new LoginStep(LoginStep.Next.TOTP, flow, null, null);
-            case "DONE" -> confirmed(new IdentitySession(
-                user(response), response.text("sessionToken"), Instant.parse(response.text("expiresAt"))));
-            default -> LoginStep.failed(LoginStep.LOGIN_FAILED);
+        Optional<LoginStep> step = switch (String.valueOf(response.text("next"))) {
+            case "EMAIL_CODE" -> continued(response, flow)
+                .map(next -> new LoginStep(LoginStep.Next.EMAIL_CODE, next, null, null));
+            case "TOTP" -> Optional.ofNullable(flow).map(next -> new LoginStep(LoginStep.Next.TOTP, next, null, null));
+            case "DONE" -> session(response).map(this::confirmed);
+            default -> Optional.empty();
         };
+        return step.orElseGet(() -> LoginStep.failed(LoginStep.LOGIN_FAILED));
+    }
+
+    /** The flow Identity started, or the one in progress when it did not name a new one. */
+    private static Optional<LoginFlow> continued(Response response, LoginFlow flow) {
+        String id = response.text("flowId");
+        String secret = response.text("flowSecret");
+        if (id == null) {
+            return Optional.ofNullable(flow);
+        }
+        try {
+            return secret == null ? Optional.empty() : Optional.of(new LoginFlow(UUID.fromString(id), secret));
+        } catch (IllegalArgumentException exception) {
+            return Optional.empty();
+        }
     }
 
     /** A session is handed to the application only after Identity confirms its token belongs to the same user. */
@@ -172,8 +186,30 @@ public class VelodeIdentity {
         return Optional.empty();
     }
 
-    private static IdentityUser user(Response response) {
-        return new IdentityUser(UUID.fromString(response.text("userId")), response.text("email"));
+    /** An answer without a usable user identifier proves nobody's identity. */
+    private static Optional<IdentityUser> user(Response response) {
+        String userId = response.text("userId");
+        try {
+            return userId == null ? Optional.empty()
+                : Optional.of(new IdentityUser(UUID.fromString(userId), response.text("email")));
+        } catch (IllegalArgumentException exception) {
+            return Optional.empty();
+        }
+    }
+
+    /** The session Identity issued, or empty when its answer lacks the user, the token or a valid expiry. */
+    private static Optional<IdentitySession> session(Response response) {
+        String token = response.text("sessionToken");
+        String expiresAt = response.text("expiresAt");
+        if (token == null || expiresAt == null) {
+            return Optional.empty();
+        }
+        try {
+            Instant expiry = Instant.parse(expiresAt);
+            return user(response).map(user -> new IdentitySession(user, token, expiry));
+        } catch (DateTimeParseException exception) {
+            return Optional.empty();
+        }
     }
 
     private static String encode(String value) {

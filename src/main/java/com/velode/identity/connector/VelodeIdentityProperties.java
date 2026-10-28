@@ -42,6 +42,14 @@ public record VelodeIdentityProperties(String url, String appUrl, String name, D
         return url.substring(0, segment) + "/api/organizations/" + url.substring(segment + ORGANIZATION_SEGMENT.length());
     }
 
+    /** This application's origin as browsers name it in the {@code Origin} header. */
+    String appOrigin() {
+        URI uri = URI.create(appUrl);
+        String scheme = uri.getScheme().toLowerCase(Locale.ROOT);
+        boolean defaultPort = uri.getPort() == -1 || uri.getPort() == ("https".equals(scheme) ? 443 : 80);
+        return scheme + "://" + uri.getHost().toLowerCase(Locale.ROOT) + (defaultPort ? "" : ":" + uri.getPort());
+    }
+
     /**
      * Session tokens and connection keys travel to these addresses, so they must be HTTPS. Plain HTTP is accepted
      * only on this machine, for development.
