@@ -54,6 +54,9 @@ velode.identity.app-url=https://app.example.com
 ```
 
 The app URL is an origin, without a path, on an allowed application domain.
+Both addresses must use `https`, because the connection key and users' session tokens travel to them; the
+connector refuses to start otherwise. Plain `http` is accepted only for `localhost`, `127.0.0.1` and `[::1]`,
+for local development.
 Use the application's existing `JdbcTemplate` bean and database: the connector creates
 `velode_identity_connection` there, so its account needs permission to create that table.
 All replicas must share this storage. For another storage option, see [connection storage](advanced-usage.md#connection-storage).
