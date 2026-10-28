@@ -6,7 +6,7 @@
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
 		<!-- Oldest Spring Boot line a connected application runs on; the connector also runs on 4.x. -->
-		<version>3.5.14</version>
+		<version>3.5.16</version>
 		<relativePath/>
 	</parent>
 	<groupId>com.velode</groupId>
@@ -28,6 +28,8 @@
 	<properties>
 		<java.version>21</java.version>
 		<maven.compiler.parameters>true</maven.compiler.parameters>
+		<!-- Test-only, through spring-boot-starter-test; GHSA-qv9r-c865-cp47 is fixed in 2.25.5. -->
+		<log4j2.version>2.25.5</log4j2.version>
 	</properties>
 	<dependencies>
 		<dependency>
