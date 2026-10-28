@@ -16,6 +16,12 @@ docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --re
 docker run --rm -v "$PWD/target:/sbom:ro" ghcr.io/google/osv-scanner:v2.2.4 scan source -L /sbom/bom.json
 ```
 
+## Dependencies
+
+Dependabot only raises alerts for vulnerable dependencies; it opens no pull requests. Update dependencies by hand on a
+branch from `develop`, keeping the Spring Boot parent on the oldest supported line (patch releases only). The weekly
+`Security` workflow also fails when a new advisory affects a dependency.
+
 ## Branches
 
 Work on a branch from `develop` and open a pull request against it; see [contributing](../CONTRIBUTING.md).
