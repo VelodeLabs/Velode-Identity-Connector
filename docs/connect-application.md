@@ -109,6 +109,7 @@ Use `userId` to own application data and keep roles and permissions in the app.
 Test the sign-in link over HTTPS, then request `/me` in the same browser.
 The connector handles the callback and keeps the session in an `HttpOnly`, `Secure` cookie.
 Link to `/velode-identity/logout` to clear the app's cookie; the Identity session remains signed in.
+Sign-out started by another site is refused with `403`, so other sites cannot sign users out.
 Before approval, sign-in returns `503`.
 
 For a custom email sign-in page, see [Your own sign-in page](advanced-usage.md#your-own-sign-in-page).

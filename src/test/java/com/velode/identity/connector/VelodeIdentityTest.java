@@ -334,7 +334,7 @@ class VelodeIdentityTest {
     @Test
     void should_KeepFlowInHttpOnlyCookieAndSetSessionOnlyWhenDone() throws Exception {
         connect();
-        VelodeIdentityFilter filter = new VelodeIdentityFilter(velodeIdentity, new SecureRandom());
+        VelodeIdentityFilter filter = filter();
 
         MockHttpServletResponse options = flow(filter, "GET", "options", null, null);
         assertThat(options.getContentAsString())
@@ -365,26 +365,107 @@ class VelodeIdentityTest {
         MockHttpServletRequest form = new MockHttpServletRequest("POST", "/velode-identity/flow/start");
         form.setContentType("application/x-www-form-urlencoded");
         form.setContent("email=user@velode.io".getBytes(StandardCharsets.UTF_8));
-        MockHttpServletResponse refused = new MockHttpServletResponse();
-        filter.doFilter(form, refused, new MockFilterChain());
-        assertThat(refused.getStatus()).isEqualTo(415);
+        assertThat(send(filter, form).getStatus()).isEqualTo(415);
+    }
+
+    @Test
+    void should_RefuseToSignInOrOut_when_AnotherSiteStartsTheRequest() throws Exception {
+        connect();
+        VelodeIdentityFilter filter = filter();
+        String email = "{\"email\":\"user@velode.io\"}";
+
+        for (String[] header : new String[][] {
+            {"Sec-Fetch-Site", "cross-site"}, {"Sec-Fetch-Site", "same-site"},
+            {"Origin", "https://evil.example"}, {"Origin", "https://lista.velode.io.evil.example"}, {"Origin", "null"}
+        }) {
+            MockHttpServletRequest forged = flowRequest("POST", "start", email);
+            forged.addHeader(header[0], header[1]);
+            MockHttpServletResponse refused = send(filter, forged);
+            assertThat(refused.getStatus()).as(header[1]).isEqualTo(403);
+            assertThat(refused.getContentAsString()).isEqualTo("{\"error\":\"CROSS_ORIGIN\"}");
+            assertThat(refused.getCookie("velode_identity_flow")).isNull();
+        }
+        assertThat(requests).isEmpty();
+
+        MockHttpServletRequest own = flowRequest("POST", "start", email);
+        own.addHeader("Sec-Fetch-Site", "same-origin");
+        own.addHeader("Origin", "https://lista.velode.io");
+        MockHttpServletResponse started = send(filter, own);
+        assertThat(started.getStatus()).isEqualTo(200);
+        assertThat(started.getHeader("X-Content-Type-Options")).isEqualTo("nosniff");
+
+        MockHttpServletRequest forgedLogout = new MockHttpServletRequest("GET", "/velode-identity/logout");
+        forgedLogout.addHeader("Sec-Fetch-Site", "cross-site");
+        MockHttpServletResponse kept = send(filter, forgedLogout);
+        assertThat(kept.getStatus()).isEqualTo(403);
+        assertThat(kept.getCookie(VelodeIdentity.SESSION_COOKIE)).isNull();
+
+        MockHttpServletRequest logout = new MockHttpServletRequest("GET", "/velode-identity/logout");
+        logout.addHeader("Sec-Fetch-Site", "same-origin");
+        MockHttpServletResponse signedOut = send(filter, logout);
+        assertThat(signedOut.getRedirectedUrl()).isEqualTo("/");
+        assertThat(signedOut.getCookie(VelodeIdentity.SESSION_COOKIE).getMaxAge()).isZero();
+        assertThat(signedOut.getHeader("Cache-Control")).isEqualTo("no-store");
+    }
+
+    @Test
+    void should_ReturnHome_when_StateCookieCarriesAnUnreadableReturnAddress() throws Exception {
+        connect();
+        MockHttpServletRequest callback = new MockHttpServletRequest("GET", VelodeIdentity.CALLBACK_PATH);
+        callback.setCookies(new Cookie("velode_identity_state", "state.%%%"));
+        callback.setParameter("velode_identity_state", "state");
+        callback.setParameter("velode_identity_code", "valid-code");
+
+        MockHttpServletResponse response = send(filter(), callback);
+
+        assertThat(response.getRedirectedUrl()).isEqualTo("/");
+        assertThat(response.getCookie(VelodeIdentity.SESSION_COOKIE).getValue()).isEqualTo("valid-token");
+        assertThat(response.getHeader("Referrer-Policy")).isEqualTo("no-referrer");
+        assertThat(response.getHeader("Cache-Control")).isEqualTo("no-store");
+    }
+
+    @Test
+    void should_RefuseSession_when_IdentityAnswersWithoutAUsableUserTokenOrExpiry() {
+        connect();
+
+        assertThat(velodeIdentity.exchange("incomplete-code")).isEmpty();
+        assertThat(velodeIdentity.verify("incomplete-token")).isEmpty();
+        LoginStep started = velodeIdentity.startLogin("user@velode.io", BROWSER, null);
+        assertThat(velodeIdentity.submitLoginCode(started.flow(), "44444444", BROWSER).error())
+            .isEqualTo(LoginStep.LOGIN_FAILED);
+        assertThat(velodeIdentity.startLogin("broken@velode.io", BROWSER, null).error())
+            .isEqualTo(LoginStep.LOGIN_FAILED);
     }
 
     private MockHttpServletResponse flow(
         VelodeIdentityFilter filter, String method, String step, String body, Cookie cookie
     ) throws Exception {
+        MockHttpServletRequest request = flowRequest(method, step, body);
+        if (cookie != null) {
+            request.setCookies(cookie);
+        }
+        return send(filter, request);
+    }
+
+    private static MockHttpServletRequest flowRequest(String method, String step, String body) {
         MockHttpServletRequest request = new MockHttpServletRequest(method, "/velode-identity/flow/" + step);
         request.setRemoteAddr(BROWSER);
         if (body != null) {
             request.setContentType("application/json");
             request.setContent(body.getBytes(StandardCharsets.UTF_8));
         }
-        if (cookie != null) {
-            request.setCookies(cookie);
-        }
+        return request;
+    }
+
+    private static MockHttpServletResponse send(VelodeIdentityFilter filter, MockHttpServletRequest request)
+        throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(request, response, new MockFilterChain());
         return response;
+    }
+
+    private VelodeIdentityFilter filter() {
+        return new VelodeIdentityFilter(velodeIdentity, properties().appOrigin(), new SecureRandom());
     }
 
     private Optional<VelodeIdentity.IdentityUser> manager(
@@ -434,6 +515,9 @@ class VelodeIdentityTest {
             respond(exchange, 401, "{\"status\":401,\"error\":\"INVALID_CONNECTION_KEY\",\"message\":\"Invalid server connection key\"}");
         } else if (path.startsWith("/login-flow/")) {
             loginFlow(exchange, path.substring("/login-flow/".length()), body);
+        } else if (body.contains("incomplete-")) {
+            respond(exchange, 200,
+                "{\"success\":true,\"data\":{\"userId\":\"not-a-uuid\",\"sessionToken\":\"valid-token\"}}");
         } else if ("/connection/rotate".equals(path)) {
             approvedKey = body.replaceAll(".*\"newKey\":\"([^\"]+)\".*", "$1");
             respond(exchange, 204, "");
@@ -445,7 +529,10 @@ class VelodeIdentityTest {
         }
     }
 
-    /** Identity decides each step; 22222222 belongs to an account with TOTP and 33333333 yields a token it disowns. */
+    /**
+     * Identity decides each step; 22222222 belongs to an account with TOTP, 33333333 yields a token it disowns,
+     * 44444444 a session without an expiry, and broken@velode.io a flow without a usable identifier.
+     */
     private void loginFlow(HttpExchange exchange, String step, String body) throws IOException {
         boolean ownFlow = body.contains("\"flowId\":\"" + FLOW_ID + "\",\"flowSecret\":\"" + FLOW_SECRET + "\"");
         String issued = body.contains("\"code\":\"33333333\"") ? "forged-token" : "valid-token";
@@ -453,10 +540,13 @@ class VelodeIdentityTest {
             case "options" -> respond(exchange, 200,
                 "{\"success\":true,\"data\":{\"turnstileSiteKey\":\"site-key\",\"turnstileAction\":\"identity_start\"}}");
             case "start" -> respond(exchange, 200, "{\"success\":true,\"data\":{\"next\":\"EMAIL_CODE\",\"flowId\":\""
-                + FLOW_ID + "\",\"flowSecret\":\"" + FLOW_SECRET + "\"}}");
+                + (body.contains("broken@") ? "not-a-uuid" : FLOW_ID) + "\",\"flowSecret\":\"" + FLOW_SECRET + "\"}}");
             case "email-code" -> {
                 if (ownFlow && body.contains("\"code\":\"22222222\"")) {
                     respond(exchange, 200, "{\"success\":true,\"data\":{\"next\":\"TOTP\"}}");
+                } else if (ownFlow && body.contains("\"code\":\"44444444\"")) {
+                    respond(exchange, 200, "{\"success\":true,\"data\":{\"next\":\"DONE\",\"userId\":\"" + USER_ID
+                        + "\",\"sessionToken\":\"valid-token\"}}");
                 } else if (ownFlow && (body.contains("\"code\":\"12345678\"") || body.contains("\"code\":\"33333333\""))) {
                     respondDone(exchange, issued);
                 } else {

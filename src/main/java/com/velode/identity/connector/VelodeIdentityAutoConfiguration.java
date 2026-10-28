@@ -83,8 +83,8 @@ public class VelodeIdentityAutoConfiguration {
     static class WebConfiguration {
 
         @Bean
-        VelodeIdentityFilter velodeIdentityFilter(VelodeIdentity identity) {
-            return new VelodeIdentityFilter(identity, new SecureRandom());
+        VelodeIdentityFilter velodeIdentityFilter(VelodeIdentity identity, VelodeIdentityProperties properties) {
+            return new VelodeIdentityFilter(identity, properties.appOrigin(), new SecureRandom());
         }
     }
 }

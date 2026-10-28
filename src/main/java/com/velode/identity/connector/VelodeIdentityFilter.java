@@ -52,10 +52,12 @@ class VelodeIdentityFilter extends HttpFilter {
     private static final int TOO_MANY_REQUESTS = 429;
 
     private final transient VelodeIdentity identity;
+    private final String appOrigin;
     private final transient SecureRandom random;
 
-    VelodeIdentityFilter(VelodeIdentity identity, SecureRandom random) {
+    VelodeIdentityFilter(VelodeIdentity identity, String appOrigin, SecureRandom random) {
         this.identity = identity;
+        this.appOrigin = appOrigin;
         this.random = random;
     }
 
@@ -66,10 +68,7 @@ class VelodeIdentityFilter extends HttpFilter {
         switch (path) {
             case LOGIN_PATH -> login(request, response);
             case VelodeIdentity.CALLBACK_PATH -> callback(request, response);
-            case LOGOUT_PATH -> {
-                response.addCookie(cookie(VelodeIdentity.SESSION_COOKIE, "", Duration.ZERO, request));
-                response.sendRedirect(request.getContextPath() + HOME);
-            }
+            case LOGOUT_PATH -> logout(request, response);
             default -> {
                 if (path.startsWith(FLOW_PATH)) {
                     flow(path.substring(FLOW_PATH.length()), request, response);
@@ -82,7 +81,8 @@ class VelodeIdentityFilter extends HttpFilter {
 
     /**
      * JSON steps for the application's own sign-in page. Identity decides every step; the flow stays in an HttpOnly
-     * cookie the page's scripts never read. JSON bodies keep other sites' forms from starting or continuing a flow.
+     * cookie the page's scripts never read. JSON bodies and the origin check keep other sites from starting or
+     * continuing a flow.
      */
     private void flow(String step, HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setHeader("Cache-Control", "no-store");
@@ -99,6 +99,10 @@ class VelodeIdentityFilter extends HttpFilter {
         if (post && (request.getContentType() == null
             || !request.getContentType().toLowerCase(Locale.ROOT).startsWith("application/json"))) {
             json(response, HttpServletResponse.SC_UNSUPPORTED_MEDIA_TYPE, Map.of("error", "JSON_REQUIRED"));
+            return;
+        }
+        if (post && !sameOrigin(request)) {
+            json(response, HttpServletResponse.SC_FORBIDDEN, Map.of("error", "CROSS_ORIGIN"));
             return;
         }
         Map<String, Object> body = post ? body(request) : Map.of();
@@ -200,12 +204,14 @@ class VelodeIdentityFilter extends HttpFilter {
 
     private static void json(HttpServletResponse response, int status, Map<String, String> fields) throws IOException {
         response.setStatus(status);
+        response.setHeader("X-Content-Type-Options", "nosniff");
         response.setContentType("application/json");
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.getWriter().write(IdentityClient.json(fields));
     }
 
     private void login(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        response.setHeader("Cache-Control", "no-store");
         byte[] bytes = new byte[24];
         random.nextBytes(bytes);
         String state = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
@@ -221,6 +227,9 @@ class VelodeIdentityFilter extends HttpFilter {
     }
 
     private void callback(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        response.setHeader("Cache-Control", "no-store");
+        // The address carries the one-time code; no page reached from here may see it.
+        response.setHeader("Referrer-Policy", "no-referrer");
         String[] expected = cookieValue(request, STATE_COOKIE).split("\\.", 2);
         String state = request.getParameter(STATE_PARAMETER);
         response.addCookie(cookie(STATE_COOKIE, "", Duration.ZERO, request));
@@ -236,8 +245,37 @@ class VelodeIdentityFilter extends HttpFilter {
         }
         Duration lifetime = Duration.between(Instant.now(), session.get().expiresAt());
         response.addCookie(cookie(VelodeIdentity.SESSION_COOKIE, session.get().token(), lifetime, request));
-        String returnTo = new String(Base64.getUrlDecoder().decode(expected[1]), StandardCharsets.UTF_8);
-        response.sendRedirect(request.getContextPath() + localPath(returnTo));
+        response.sendRedirect(request.getContextPath() + localPath(decoded(expected[1])));
+    }
+
+    /** Signing out is a link, but only this application may follow it; another site cannot sign its users out. */
+    private void logout(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        response.setHeader("Cache-Control", "no-store");
+        if (!sameOrigin(request)) {
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Sign-out must start in this application");
+            return;
+        }
+        response.addCookie(cookie(VelodeIdentity.SESSION_COOKIE, "", Duration.ZERO, request));
+        response.sendRedirect(request.getContextPath() + HOME);
+    }
+
+    /**
+     * Browsers say which site started a request. Clients that send neither header, such as older browsers, still meet
+     * the JSON-only bodies and SameSite cookies.
+     */
+    private boolean sameOrigin(HttpServletRequest request) {
+        String site = request.getHeader("Sec-Fetch-Site");
+        String origin = request.getHeader("Origin");
+        return (site == null || "same-origin".equals(site) || "none".equals(site))
+            && (origin == null || appOrigin.equals(origin));
+    }
+
+    private static String decoded(String value) {
+        try {
+            return new String(Base64.getUrlDecoder().decode(value), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException exception) {
+            return HOME;
+        }
     }
 
     /** Only paths inside this application are followed after sign-in. */

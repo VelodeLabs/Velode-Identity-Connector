@@ -49,7 +49,9 @@ const { next } = await step("code", { code }); // TOTP asks for the authenticato
 ```
 
 The flow lives in an `HttpOnly` cookie that page scripts never see; `DONE` sets the same session cookie as the
-redirect sign-in, after Identity confirms the session it issued. Requests must be JSON. Failures answer
+redirect sign-in, after Identity confirms the session it issued. Requests must be JSON and come from the page's own
+origin: a `POST` whose `Origin` differs from `velode.identity.app-url`, or whose `Sec-Fetch-Site` is not
+`same-origin`, answers `403` `{"error":"CROSS_ORIGIN"}`. Serve the page from that origin. Failures answer
 `{"error": CODE}`: `INVALID_CODE` (wrong, used or expired code: ask again or restart), `TURNSTILE_REJECTED`,
 `LOCKED`, `RATE_LIMITED`, `ACCESS_DENIED` (the account may not enter this application), `NO_FLOW` (start first) and
 `NOT_CONNECTED` or `IDENTITY_UNAVAILABLE`. With Spring Security, permit `/velode-identity/**` and either exclude
