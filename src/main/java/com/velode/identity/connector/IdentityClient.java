@@ -20,7 +20,11 @@ class IdentityClient {
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
 
     private final String apiUrl;
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
+    // A redirect could carry the connection key to another host, so Identity's answer is taken as it is.
+    private final HttpClient http = HttpClient.newBuilder()
+        .connectTimeout(TIMEOUT)
+        .followRedirects(HttpClient.Redirect.NEVER)
+        .build();
 
     IdentityClient(String apiUrl) {
         this.apiUrl = apiUrl;
