@@ -45,7 +45,9 @@ Packages requires even for public packages. Keep it out of git.
 ## Browser Flows
 
 `VelodeIdentity` also offers `loginUrl`, `exchange` and `verify` for applications that manage the browser flow
-themselves. `currentUser` and `verify` ask Identity on every call, so call them once per request.
+themselves. `currentUser` and `verify` ask Identity on every call, so call them once per request. Every method that
+asks Identity throws `IdentityUnavailableException` when Identity cannot be reached; the connector's own sign-in
+addresses answer `503` in that case.
 
 ## Your Own Sign-In Page
 

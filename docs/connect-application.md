@@ -88,6 +88,8 @@ ResponseEntity<VelodeIdentity.IdentityUser> me(HttpServletRequest request) {
 Here `identity` is the injected connector; use Spring MVC's `GetMapping`, Spring's `ResponseEntity` and
 Jakarta's `HttpServletRequest`. Check the user once per request; each call verifies access with Identity.
 Use `userId` to own application data and keep roles and permissions in the app.
+When Identity cannot be reached, `currentUser` throws `IdentityUnavailableException`; answer `503` so the user can
+try again, rather than treating them as signed out.
 
 Test the sign-in link over HTTPS, then request `/me` in the same browser.
 The connector handles the callback and keeps the session in an `HttpOnly`, `Secure` cookie.

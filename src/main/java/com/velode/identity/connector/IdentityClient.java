@@ -101,16 +101,4 @@ class IdentityClient {
             return value == null ? null : value.toString();
         }
     }
-
-    /**
-     * Identity did not answer; the caller cannot tell whether a user is authenticated.
-     */
-    public static class IdentityUnavailableException extends RuntimeException {
-
-        private static final long serialVersionUID = 1L;
-
-        public IdentityUnavailableException(String message, Throwable cause) {
-            super(message, cause);
-        }
-    }
 }
