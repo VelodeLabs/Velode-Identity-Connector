@@ -12,3 +12,6 @@ target/
 .env
 .env.*
 *.log
+
+# Key exports
+*.asc

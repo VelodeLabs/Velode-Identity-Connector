@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Published to Maven Central, signed with the Velode Labs key; no repository or token needed to install.
+- Releases include sources and Javadoc.
+
 ## 0.4.0
 
 First public release, licensed under Apache 2.0.
