@@ -1,6 +1,6 @@
 # Velode Identity Connector
 
-[![CI](https://github.com/VelodeLabs/Velode-Identity-Connector/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/VelodeLabs/Velode-Identity-Connector/actions/workflows/ci.yml)
+[![CI](https://github.com/velodelabs/Velode-Identity-Connector/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/velodelabs/Velode-Identity-Connector/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 Spring Boot starter that connects an application's backend to Velode Identity.

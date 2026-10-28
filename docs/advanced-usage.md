@@ -20,7 +20,7 @@ Every release is also published to GitHub Packages. Add the repository under `<r
 ```xml
 <repository>
     <id>github-velode</id>
-    <url>https://maven.pkg.github.com/VelodeLabs/Velode-Identity-Connector</url>
+    <url>https://maven.pkg.github.com/velodelabs/Velode-Identity-Connector</url>
 </repository>
 ```
 
