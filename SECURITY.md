@@ -14,7 +14,7 @@ Security fixes are released for the latest minor version only. Upgrade to it bef
 Do not open a public issue, discussion or pull request for a vulnerability.
 
 Report it privately through
-[GitHub's private vulnerability reporting](https://github.com/velodelabs/Velode-Identity-Connector/security/advisories/new)
+[GitHub's private vulnerability reporting](https://github.com/velodeworks/Velode-Identity-Connector/security/advisories/new)
 (**Security > Report a vulnerability**). Include the affected version, how to reproduce it and the impact you
 expect. If the issue lies in Velode Identity rather than in this connector, report it here as well and we will route it.
 

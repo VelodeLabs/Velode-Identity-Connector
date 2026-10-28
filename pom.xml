@@ -14,10 +14,10 @@
 	<version>0.4.1</version>
 	<name>velode-identity-connector</name>
 	<description>Connects a Spring Boot application to Velode Identity without managed credentials</description>
-	<url>https://github.com/velodelabs/Velode-Identity-Connector</url>
+	<url>https://github.com/velodeworks/Velode-Identity-Connector</url>
 	<organization>
-		<name>Velode Labs</name>
-		<url>https://github.com/velodelabs</url>
+		<name>Velode</name>
+		<url>https://github.com/velodeworks</url>
 	</organization>
 	<licenses>
 		<license>
@@ -28,27 +28,27 @@
 	</licenses>
 	<developers>
 		<developer>
-			<id>velodelabs</id>
-			<name>Velode Labs</name>
+			<id>velode</id>
+			<name>Velode</name>
 			<email>admin@velode.com</email>
-			<organization>Velode Labs</organization>
-			<organizationUrl>https://github.com/velodelabs</organizationUrl>
+			<organization>Velode</organization>
+			<organizationUrl>https://github.com/velodeworks</organizationUrl>
 		</developer>
 	</developers>
 	<scm>
-		<url>https://github.com/velodelabs/Velode-Identity-Connector</url>
-		<connection>scm:git:https://github.com/velodelabs/Velode-Identity-Connector.git</connection>
-		<developerConnection>scm:git:git@github.com:velodelabs/Velode-Identity-Connector.git</developerConnection>
+		<url>https://github.com/velodeworks/Velode-Identity-Connector</url>
+		<connection>scm:git:https://github.com/velodeworks/Velode-Identity-Connector.git</connection>
+		<developerConnection>scm:git:git@github.com:velodeworks/Velode-Identity-Connector.git</developerConnection>
 		<tag>HEAD</tag>
 	</scm>
 	<issueManagement>
 		<system>GitHub</system>
-		<url>https://github.com/velodelabs/Velode-Identity-Connector/issues</url>
+		<url>https://github.com/velodeworks/Velode-Identity-Connector/issues</url>
 	</issueManagement>
 	<distributionManagement>
 		<repository>
 			<id>github</id>
-			<url>https://maven.pkg.github.com/velodelabs/Velode-Identity-Connector</url>
+			<url>https://maven.pkg.github.com/velodeworks/Velode-Identity-Connector</url>
 		</repository>
 	</distributionManagement>
 	<properties>
