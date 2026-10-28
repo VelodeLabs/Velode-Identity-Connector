@@ -1,0 +1,59 @@
+name: Security
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+  schedule:
+    # New advisories appear without any change here.
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan the whole history with gitleaks
+        run: >
+          docker run --rm -v "$PWD:/repo"
+          ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+          git /repo --redact --no-banner
+
+  dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      - name: List every dependency, test scope included
+        run: >
+          ./mvnw --batch-mode org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom
+          -DoutputFormat=json -DoutputName=bom -DincludeTestScope=true
+      - name: Check them against OSV advisories
+        run: >
+          docker run --rm -v "$PWD/target:/sbom:ro"
+          ghcr.io/google/osv-scanner:v2.2.4@sha256:f7ba4be68bac8086b1f88fd598fdca1ca67239c79ad2c2b5c78e03a82e5187c4
+          scan source -L /sbom/bom.json
+
+  dependency-review:
+    # GitHub only reviews dependency changes of public repositories on the free plan.
+    if: github.event_name == 'pull_request' && !github.event.repository.private
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: moderate

@@ -6,19 +6,34 @@
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
 		<!-- Oldest Spring Boot line a connected application runs on; the connector also runs on 4.x. -->
-		<version>3.5.14</version>
+		<version>3.5.16</version>
 		<relativePath/>
 	</parent>
 	<groupId>com.velode</groupId>
 	<artifactId>identity-spring-boot-starter</artifactId>
-	<version>0.3.0</version>
+	<version>0.4.0</version>
 	<name>velode-identity-connector</name>
 	<description>Connects a Spring Boot application to Velode Identity without managed credentials</description>
 	<url>https://github.com/VelodeLabs/Velode-Identity-Connector</url>
+	<organization>
+		<name>Velode Labs</name>
+		<url>https://github.com/VelodeLabs</url>
+	</organization>
+	<licenses>
+		<license>
+			<name>Apache-2.0</name>
+			<url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
 	<scm>
 		<url>https://github.com/VelodeLabs/Velode-Identity-Connector</url>
 		<connection>scm:git:https://github.com/VelodeLabs/Velode-Identity-Connector.git</connection>
 	</scm>
+	<issueManagement>
+		<system>GitHub</system>
+		<url>https://github.com/VelodeLabs/Velode-Identity-Connector/issues</url>
+	</issueManagement>
 	<distributionManagement>
 		<repository>
 			<id>github</id>
@@ -28,6 +43,8 @@
 	<properties>
 		<java.version>21</java.version>
 		<maven.compiler.parameters>true</maven.compiler.parameters>
+		<!-- Test-only, through spring-boot-starter-test; GHSA-qv9r-c865-cp47 is fixed in 2.25.5. -->
+		<log4j2.version>2.25.5</log4j2.version>
 	</properties>
 	<dependencies>
 		<dependency>

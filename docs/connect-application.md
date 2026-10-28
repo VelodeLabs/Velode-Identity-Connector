@@ -26,7 +26,7 @@ In the application's Maven `pom.xml`, add this repository under `<repositories>`
 <dependency>
     <groupId>com.velode</groupId>
     <artifactId>identity-spring-boot-starter</artifactId>
-    <version>0.3.0</version>
+    <version>0.4.0</version>
 </dependency>
 ```
 
@@ -41,7 +41,8 @@ on developer machines and CI:
 </server>
 ```
 
-Provide `GITHUB_PACKAGES_TOKEN` through the environment, with `read:packages` and repository read access.
+Provide `GITHUB_PACKAGES_TOKEN` through the environment: a GitHub personal access token (classic) with the
+`read:packages` scope, which GitHub Packages requires even for public packages.
 Keep the token out of git; it is only for downloading the dependency.
 
 ## 3. Configure The Application
@@ -54,6 +55,9 @@ velode.identity.app-url=https://app.example.com
 ```
 
 The app URL is an origin, without a path, on an allowed application domain.
+Both addresses must use `https`, because the connection key and users' session tokens travel to them; the
+connector refuses to start otherwise. Plain `http` is accepted only for `localhost`, `127.0.0.1` and `[::1]`,
+for local development.
 Use the application's existing `JdbcTemplate` bean and database: the connector creates
 `velode_identity_connection` there, so its account needs permission to create that table.
 All replicas must share this storage. For another storage option, see [connection storage](advanced-usage.md#connection-storage).
@@ -106,6 +110,8 @@ Use `userId` to own application data and keep roles and permissions in the app.
 Test the sign-in link over HTTPS, then request `/me` in the same browser.
 The connector handles the callback and keeps the session in an `HttpOnly`, `Secure` cookie.
 Link to `/velode-identity/logout` to clear the app's cookie; the Identity session remains signed in.
+Sign-out started by another site is refused with `403`, so other sites cannot sign users out.
 Before approval, sign-in returns `503`.
 
 For a custom email sign-in page, see [Your own sign-in page](advanced-usage.md#your-own-sign-in-page).
+Before going to production, review the [security guide](security.md) and its checklist.
