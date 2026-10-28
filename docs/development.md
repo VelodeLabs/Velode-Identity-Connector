@@ -47,7 +47,7 @@ The `maven-central` environment only accepts release tags and holds:
 | `CENTRAL_USERNAME`, `CENTRAL_TOKEN` | A user token from central.sonatype.com for the verified `com.velode` namespace |
 | `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE` | The armored signing key and its passphrase |
 
-The signing key is `0FA015BF13775E582A58C41EDC3A6A2D31C6A2F1` (Velode Labs, RSA 4096), published on
+The signing key is `0FA015BF13775E582A58C41EDC3A6A2D31C6A2F1` (RSA 4096, `admin@velode.com`), published on
 `keyserver.ubuntu.com` and `keys.openpgp.org`. It expires in October 2029: extend it with `gpg --quick-set-expire`,
 publish it again and update `GPG_PRIVATE_KEY`. If the token or key leaks, revoke it and replace the secrets.
 
