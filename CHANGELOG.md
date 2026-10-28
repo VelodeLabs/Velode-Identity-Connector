@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.4.1
+
+The connector code is unchanged from 0.4.0.
 
 - Published to Maven Central, signed with the Velode Labs key; no repository or token needed to install.
 - Releases include sources and Javadoc.

@@ -19,7 +19,7 @@ The connector is published to Maven Central. Add it under `<dependencies>` in th
 <dependency>
     <groupId>com.velode</groupId>
     <artifactId>identity-spring-boot-starter</artifactId>
-    <version>0.4.0</version>
+    <version>0.4.1</version>
 </dependency>
 ```
 
