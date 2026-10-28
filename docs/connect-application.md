@@ -13,37 +13,19 @@ Open **Connect app** and copy the organization address for step 3.
 
 ## 2. Add The Connector
 
-In the application's Maven `pom.xml`, add this repository under `<repositories>` and dependency under `<dependencies>`:
-
-```xml
-<repository>
-    <id>github-velode</id>
-    <url>https://maven.pkg.github.com/VelodeLabs/Velode-Identity-Connector</url>
-</repository>
-```
+The connector is published to Maven Central. Add it under `<dependencies>` in the application's `pom.xml`:
 
 ```xml
 <dependency>
     <groupId>com.velode</groupId>
     <artifactId>identity-spring-boot-starter</artifactId>
-    <version>0.4.0</version>
+    <version>0.4.1</version>
 </dependency>
 ```
 
-GitHub Packages needs download credentials. Add this server under `<servers>` in `~/.m2/settings.xml`
-on developer machines and CI:
-
-```xml
-<server>
-    <id>github-velode</id>
-    <username>GITHUB_USERNAME</username>
-    <password>${env.GITHUB_PACKAGES_TOKEN}</password>
-</server>
-```
-
-Provide `GITHUB_PACKAGES_TOKEN` through the environment: a GitHub personal access token (classic) with the
-`read:packages` scope, which GitHub Packages requires even for public packages.
-Keep the token out of git; it is only for downloading the dependency.
+Releases are signed with the Velode Labs key `0FA0 15BF 1377 5E58 2A58 C41E DC3A 6A2D 31C6 A2F1`, published on
+`keyserver.ubuntu.com` and `keys.openpgp.org`. The same versions are also on GitHub Packages, which needs a token
+even for public packages; see [installing from GitHub Packages](advanced-usage.md#installing-from-github-packages).
 
 ## 3. Configure The Application
 

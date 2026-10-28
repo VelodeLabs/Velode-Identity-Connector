@@ -13,6 +13,30 @@ state. The stored format is unchanged.
 If an administrator disconnects the application, or its storage is lost, the connector asks to connect again and the
 panel shows the request as a reconnection of the same application.
 
+## Installing From GitHub Packages
+
+Every release is also published to GitHub Packages. Add the repository under `<repositories>`:
+
+```xml
+<repository>
+    <id>github-velode</id>
+    <url>https://maven.pkg.github.com/VelodeLabs/Velode-Identity-Connector</url>
+</repository>
+```
+
+and its credentials under `<servers>` in `~/.m2/settings.xml`, on developer machines and CI:
+
+```xml
+<server>
+    <id>github-velode</id>
+    <username>GITHUB_USERNAME</username>
+    <password>${env.GITHUB_PACKAGES_TOKEN}</password>
+</server>
+```
+
+`GITHUB_PACKAGES_TOKEN` is a GitHub personal access token (classic) with the `read:packages` scope, which GitHub
+Packages requires even for public packages. Keep it out of git.
+
 ## Configuration
 
 `velode.identity.name` overrides the name suggested to the administrator (default `spring.application.name`) and
